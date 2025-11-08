@@ -1,6 +1,6 @@
-# This WebApp shows a global map with the meteorological stations downloaded.
+# This WebApp shows a global map with meteorological stations.
 
-Once stations data has been processed it allows to select an station to show its maximum, minimum and mean temperatures in a graph, to see its evolution over time.
+Once stations data has been processed it allows to select an station to show its maximum, minimum and mean temperatures in a graph, to see its evolution over time per decade.
 Work in progress.
 
 ## Database Initialization
