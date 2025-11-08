@@ -5,6 +5,7 @@ DROP TABLE IF EXISTS data_files;
 DROP TABLE IF EXISTS measurements;
 DROP TABLE IF EXISTS providers_magnitudes;
 DROP TABLE IF EXISTS magnitudes;
+DROP TABLE IF EXISTS providers_extra_data;
 DROP TABLE IF EXISTS providers;
 
 CREATE TABLE providers (
