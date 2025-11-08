@@ -14,3 +14,6 @@ flask --app flaskr/app init-db to initialize database.
 It will delete all existent data and tables.
 This does not create the database and user, and does not grant privileges.
 
+## Example of the temperatures graphs
+
+![Screenshot of the temperatures in Vaexjoe, Sweden from 1882 to 2006.](./meteo.png)
