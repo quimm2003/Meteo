@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en">
+    <head>
+	<title>Meteorological Data from Stations</title>
+	<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0">
+	<link rel="stylesheet" href="{{ url_for('static', filename='lib/theme/default/style.css') }}" type="text/css">
+        <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}" type="text/css">
+	<link rel="stylesheet" href="{{ url_for('static', filename='css/meteo.css') }}" type="text/css">
+        <script src="{{ url_for('static', filename='lib/OpenLayers.js') }}"></script>
+    </head>
+    <body onload="init()">
+	<div id="meteo">
+	    <div id="map" class="largemap"></div>
+	    <div id="data" hidden>
+		<div id="data-close">X</div>
+		<p id="data-p"></p>
+	    </div>
+	</div>
+	<script>
+	 var map;
+	 function getPopup(station_id) {
+	     var url = '{{url_for("popup", station_id = station_id)}}'
+
+	     var xmlHttp = new XMLHttpRequest();
+	     xmlHttp.open( "GET", url, false ); // false for synchronous request
+	     xmlHttp.send( null );
+
+	     return xmlHttp.responseText;
+	 }
+
+	 function init() {
+	     // The overlay layer for our marker, with a simple diamond as symbol
+	     var overlay = new OpenLayers.Layer.Vector('Overlay', {
+		 styleMap: new OpenLayers.StyleMap({
+		     externalGraphic: "{{ url_for('static', filename='lib/img/gps_green.png') }}",
+		     graphicWidth: 20, graphicHeight: 24, graphicYOffset: -24,
+		     title: '${tooltip}'
+		 })
+	     });
+
+	     // The location of our marker and popup. We usually think in geographic
+	     // coordinates ('EPSG:4326'), but the map is projected ('EPSG:3857').
+	     var myLocation = new OpenLayers.Geometry.Point(-7, 46).transform('EPSG:4326', 'EPSG:3857');
+	     // The location of the center of the map for the ECAD sources
+	     var ecadCenter = new OpenLayers.Geometry.Point(7, 60).transform('EPSG:4326', 'EPSG:3857');
+
+	     console.log(markers);
+	     
+	     // We add the marker with a tooltip text to the overlay
+	     overlay.addFeatures([
+		 {% for marker in markers %}
+		 new OpenLayers.Feature.Vector(new OpenLayers.Geometry.Point({{ marker['lon'] }}, {{ marker['lat'] }}).transform('EPSG:4326', 'EPSG:3857'), {'station_id': {{ marker['station_id'] }}, 'provider_id': {{ marker['provider_id'] }} }),
+		 {% endfor %}
+	     ]);
+
+	     // Finally we create the map
+	     map = new OpenLayers.Map({
+		 div: "map", projection: "EPSG:3857",
+		 layers: [new OpenLayers.Layer.OSM(), overlay],
+		 center: ecadCenter.getBounds().getCenterLonLat(),
+		 zoom: 4
+	     });
+	     
+	     var handler = new OpenLayers.Handler.Click(
+		 overlay, { 
+		     click: function(evt) {
+			 var feature = overlay.getFeatureFromEvent(evt);
+
+			 if (feature) {
+			     var response_json = getPopup(feature.attributes.station_id);
+
+			     if (response_json) {
+				 var response_array = JSON.parse(response_json);
+
+				 if (response_array.length > 0) {
+				     response = response_array[0][0];
+
+				     // A popup with some information about our location
+				     var popup = new OpenLayers.Popup.FramedCloud("Popup", 
+										  feature.geometry.getBounds().getCenterLonLat(), null,
+										  response, null,
+										  true // <-- true if we want a close (X) button, false otherwise
+				     );
+
+				     // and add the popup to the map, as exclusive
+				     map.addPopup(popup, true);
+				 }
+			     }
+			 }
+		     }
+		 },
+		 {single: true, double: false, stopSingle: true, stopDouble: false}  
+	     );
+
+	     handler.activate();
+	 }
+	</script>
+    </body>
+</html>

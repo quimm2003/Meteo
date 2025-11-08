@@ -1,0 +1,88 @@
+DROP TABLE IF EXISTS stations;
+DROP TABLE IF EXISTS ecad_stations;
+DROP TABLE IF EXISTS data_files;
+DROP TABLE IF EXISTS data_sub_types;
+DROP TABLE IF EXISTS data_types;
+DROP TABLE IF EXISTS data_sources;
+
+CREATE TABLE data_sources (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT UNIQUE NOT NULL,
+  description TEXT NOT NULL,
+  url TEXT NOT NULL,
+  update_data_period INTEGER NOT NULL
+);
+
+INSERT INTO data_sources (name, description, url, update_data_period) VALUES ('ecad', 'European Climate Assesment & Dataset', 'https://www.ecad.eu/dailydata/predefinedseries.php', 15);
+
+CREATE TABLE data_types (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  data_source_id INTEGER NOT NULL,
+  name TEXT NOT NULL,
+  FOREIGN KEY (data_source_id) REFERENCES data_sources (id)
+);
+
+INSERT INTO data_types (data_source_id, name) VALUES ((SELECT id FROM data_sources WHERE name = 'ecad'), 'temperature');
+
+CREATE TABLE data_sub_types (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  data_type_id INTEGER NOT NULL,
+  name TEXT NOT NULL,
+  last_download TEXT NULL,
+  FOREIGN KEY (data_type_id) REFERENCES data_types (id)
+);
+
+INSERT INTO data_sub_types VALUES (NULL, (SELECT t1.id FROM data_types t1, data_sources t2 WHERE t1.data_source_id = t2.id AND t2.name = 'ecad'), 'max', '14-07-2024');
+INSERT INTO data_sub_types VALUES (NULL, (SELECT t1.id FROM data_types t1, data_sources t2 WHERE t1.data_source_id = t2.id AND t2.name = 'ecad'), 'mean', '14-07-2024');
+INSERT INTO data_sub_types VALUES (NULL, (SELECT t1.id FROM data_types t1, data_sources t2 WHERE t1.data_source_id = t2.id AND t2.name = 'ecad'), 'min', '14-07-2024');
+
+CREATE TABLE data_files (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  data_source_id INTEGER NOT NULL,
+  data_type_id INTEGER NOT NULL,
+  data_sub_type_id INTEGER NOT NULL,
+  url TEXT NOT NULL,
+  FOREIGN KEY (data_source_id) REFERENCES data_sources (id)
+  FOREIGN KEY (data_type_id) REFERENCES data_types (id),
+  FOREIGN KEY (data_sub_type_id) REFERENCES data_sub_types (id)
+);
+
+-- Data files for ecad temperature max
+INSERT INTO data_files (data_source_id, data_type_id, data_sub_type_id, url) VALUES (
+(SELECT id FROM data_sources WHERE name = 'ecad'),
+(SELECT id FROM data_types WHERE data_source_id = (SELECT id FROM data_sources WHERE name = 'ecad') and name = 'temperature'),
+(SELECT id FROM data_sub_types WHERE data_type_id = (SELECT id FROM data_types WHERE data_source_id = (SELECT id FROM data_sources WHERE name = 'ecad') and name = 'temperature') and name = 'max'),
+'https://knmi-ecad-assets-prd.s3.amazonaws.com/download/ECA_nonblend_tx.zip'
+);
+
+-- Data files for ecad temperature min
+INSERT INTO data_files (data_source_id, data_type_id, data_sub_type_id, url) VALUES (
+(SELECT id FROM data_sources WHERE name = 'ecad'),
+(SELECT id FROM data_types WHERE data_source_id = (SELECT id FROM data_sources WHERE name = 'ecad') and name = 'temperature'),
+(SELECT id FROM data_sub_types WHERE data_type_id = (SELECT id FROM data_types WHERE data_source_id = (SELECT id FROM data_sources WHERE name = 'ecad') and name = 'temperature') and name = 'min'),
+'https://knmi-ecad-assets-prd.s3.amazonaws.com/download/ECA_nonblend_tn.zip'
+);
+
+-- Data files for ecad temperature mean
+INSERT INTO data_files (data_source_id, data_type_id, data_sub_type_id, url) VALUES (
+(SELECT id FROM data_sources WHERE name = 'ecad'),
+(SELECT id FROM data_types WHERE data_source_id = (SELECT id FROM data_sources WHERE name = 'ecad') and name = 'temperature'),
+(SELECT id FROM data_sub_types WHERE data_type_id = (SELECT id FROM data_types WHERE data_source_id = (SELECT id FROM data_sources WHERE name = 'ecad') and name = 'temperature') and name = 'mean'),
+'https://knmi-ecad-assets-prd.s3.amazonaws.com/download/ECA_nonblend_tg.zip'
+);
+
+CREATE TABLE stations (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  data_source_id INTEGER NOT NULL,
+  data_subtypes TEXT NULL,
+  station_id INTEGER NOT NULL,
+  name TEXT NOT NULL,
+  cn TEXT NOT NULL,
+  lat TEXT NOT NULL,
+  lon TEXT NOT NULL,
+  height INTEGER NOT NULL,
+  FOREIGN KEY (data_source_id) REFERENCES data_sources (id)
+);
+
+CREATE INDEX latlon ON stations(lat, lon);
+
