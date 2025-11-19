@@ -1,23 +1,19 @@
 #!/usr/bin/python3
 """The Flask app."""
 # Created: sáb jul  6 11:11:48 2024 (+0200)
-# Last-Updated: lun nov 25 12:57:48 2024 (+0100)
+# Last-Updated: jue nov 13 16:24:41 2025 (+0100)
 # Filename: main.py
 # Author: Joaquin Moncanut <quimm2003@gmail.es>
 
 import logging
 import os
 import sys
+import threading
 from logging.handlers import RotatingFileHandler
 
-import click
-
 from data.data import Data
-
 from db import db
-
 from flask import Flask
-
 from osmap.os_map import OSMap
 
 
@@ -66,6 +62,21 @@ def verbose_formatter():
     )
 
 
+def _process_data_async(app: Flask, providers) -> None:
+    """Run data handling in a background thread under app context."""
+    with app.app_context():
+        try:
+            app.logger.info("Background data processing started (providers=%d)", len(providers) if providers else 0)
+            data = Data()
+            data.providers = providers
+            data.handle_data()
+            app.logger.info("Background data processing completed successfully")
+        except Exception:
+            app.logger.exception("Background data processing failed")
+        finally:
+            app.logger.debug("Background data processing thread exiting")
+
+
 def create_app():
     """Configure the Factory function to create the Flask app."""
     # Check if we only want to initialize the database
@@ -108,18 +119,27 @@ def create_app():
             # Register database commands
             db.init_app(app)
         else:
+            # Initialize providers once in main thread
             data = Data()
             data.initialize_providers()
+            providers = data.providers
 
-            # To put in a separate thread
-            # data.handle_data()
-            # End to put in a separate thread
+            # Start background data processing without blocking startup (guard against Flask reloader)
+            should_start_bg = True
+            if app.debug and os.environ.get("WERKZEUG_RUN_MAIN") != "true":
+                should_start_bg = False
+                app.logger.info("Skipping background data processing thread in reloader primary process")
 
-            # Get the stations locations and info
+            if should_start_bg:
+                bg_thread = threading.Thread(target=_process_data_async, args=(app, providers), name="data-handler", daemon=True)
+                bg_thread.start()
+                app.logger.info("Started background data processing thread: %s", bg_thread.name)
+
+            # Get the stations locations and info (may be empty on first run)
             all_stations_markers = data.get_stations_markers()
 
             # Instantiate Map
-            osmap = OSMap(markers=all_stations_markers)
+            osmap = OSMap(markers=all_stations_markers, providers=providers)
             app.register_blueprint(osmap.bp)
 
     return app

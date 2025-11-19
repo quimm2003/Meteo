@@ -1,7 +1,7 @@
 #!/usr/bin/python3
 """Class to generate the html files with interactive graphs."""
 # Created: lun ago 19 18:41:47 2024 (+0200)
-# Last-Updated: dom sep 29 15:32:33 2024 (+0200)
+# Last-Updated: mar nov 18 09:00:22 2025 (+0100)
 # Filename: ecad_graphs.py
 # Author: Joaquin Moncanut <quimm2003@gmail.com>
 import math
@@ -24,6 +24,10 @@ class EcadGraphs(Graphs):
         self.provider_data = provider_data
         self.provider = self.provider_data['name']
         self.acknowledgement = self.provider_data['acknowledgment']
+        self.provider_data_dir = self.provider_data['dirs']['curr_data_dir'] / self.provider
+        self.max_temp_dir = self.provider_data_dir / 'temperature' / 'max'
+        self.min_temp_dir = self.provider_data_dir / 'temperature' / 'min'
+        self.mean_temp_dir = self.provider_data_dir / 'temperature' / 'mean'
 
         self.ecad_measurements_translations = {
             'es': {
@@ -190,8 +194,11 @@ class EcadGraphs(Graphs):
 
         if stations:
             # Set the progress bar
-            num_stations = len(stations)
-            progress_bar = tqdm(range(num_stations), file=open(os.devnull, 'w'))
+            num_graph_files = len(os.listdir(current_graph_dir))
+            num_meas_files = max(len(os.listdir(self.max_temp_dir)), len(os.listdir(self.min_temp_dir)), len(os.listdir(self.mean_temp_dir)))
+
+            num_files_left = num_meas_files - num_graph_files
+            progress_bar = tqdm(range(num_files_left), file=open(os.devnull, 'w'))
 
             for row in stations:
                 data_staid = row[0]

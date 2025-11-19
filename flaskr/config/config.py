@@ -1,7 +1,7 @@
 #!/usr/bin/python3
 """Module to configure the Flask application."""
 # Created: sáb jul  6 12:46:59 2024 (+0200)
-# Last-Updated: mié sep 18 12:12:45 2024 (+0200)
+# Last-Updated: vie nov 14 19:49:58 2025 (+0100)
 # Filename: config.py
 # Author: Joaquin Moncanut <quimm2003@gmail.com>
 from pathlib import Path
@@ -132,3 +132,12 @@ class Config:
         :rtype: Path
         """
         return Path(current_app.root_path).joinpath('logs/app.log')
+
+    @property
+    def DOWNLOAD_DATA(self):
+        """Controls if data should be checked and downloaded.
+
+        :return: True to check and download data. False otherwise.
+        :rtype: boolean
+        """
+        return False

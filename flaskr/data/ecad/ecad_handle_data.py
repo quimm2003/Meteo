@@ -7,6 +7,7 @@
 import re
 from pathlib import Path
 from zipfile import ZipFile
+from flask import current_app
 
 
 class EcadHandleData():
@@ -40,11 +41,13 @@ class EcadHandleData():
             if pat.suffix == '.zip':
                 with ZipFile(data_filename) as zipf:
                     with zipf.open(self.ecad_date_filename) as datef:
-                        text = datef.read()
+                        text = datef.readline()
                         file_date = self._extract_date(text)
             else:
                 with open(data_filename) as datef:
-                    text = datef.read()
+                    text = datef.readline()
                     file_date = self._extract_date(text)
+        else:
+            current_app.logger.error("File %s does not exists", data_filename)
 
         return file_date

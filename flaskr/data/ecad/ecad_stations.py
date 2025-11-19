@@ -1,7 +1,7 @@
 #!/usr/bin/python3
 """Class to manage all data regarding meteorological stations."""
 # Created: vie jul 19 13:29:08 2024 (+0200)
-# Last-Updated: jue sep 26 12:47:08 2024 (+0200)
+# Last-Updated: sáb nov  8 17:51:06 2025 (+0100)
 # Filename: ecad_stations.py
 # Author: Joaquin Moncanut <quimm2003@gmail.com>
 from db.statements import Statements
@@ -30,6 +30,30 @@ class EcadStations():
         self.measurement = measurement
         self.magnitudes = self.provider_data['magnitudes']
         self.stmt = Statements()
+
+    def dms_to_dd(self, dms: str) -> int:
+        """Convert degrees, minutes, seconds to decimal.
+
+        :param dms: string containing the degrees, minutes and seconds in the format: degrees:minutes:seconds
+        :type dms: str
+        :returns: The decimal translation of the degrees, minutes and seconds value.
+        :rtype: float
+        """
+        dms = dms.strip()
+        dms_split = dms.split(':')
+
+        deg_str = dms_split[0]
+        deg = float(dms_split[0])
+        minu = float(dms_split[1])
+        sec = float(dms_split[2])
+
+        if deg_str[0] == '-':
+            minu = -1 * minu
+            sec = -1 * sec
+
+        dd = deg + minu / 60 + sec / 3600
+
+        return dd
 
     def save_data(self):
         """Save the data from the station to the database."""

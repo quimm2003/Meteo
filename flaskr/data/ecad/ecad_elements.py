@@ -1,7 +1,7 @@
 #!/usr/bin/python3
 """Module to save the Ecad elements into the database."""
 # Created: lun ago  5 07:26:27 2024 (+0200)
-# Last-Updated: mar sep 24 17:10:37 2024 (+0200)
+# Last-Updated: sáb nov  8 18:09:57 2025 (+0100)
 # Filename: ecad_elements.py
 # Author: Joaquin Moncanut <quimm2003@gmail.com>
 from db.statements import Statements
@@ -78,7 +78,7 @@ class EcadElements():
 
             if measurement in self.preferred_measurements_type:
                 if eleid in self.preferred_measurements_type[measurement]:
-                    priority = self.preferred_measurements_type[measurement][eleid].index()
+                    priority = self.preferred_measurements_type[measurement].index(eleid)
 
         return priority
 

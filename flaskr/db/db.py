@@ -1,6 +1,6 @@
 """Module to create and handle a database connection."""
 # Created: vie jul 12 10:58:13 2024 (+0200)
-# Last-Updated: sáb nov  8 16:58:27 2025 (+0100)
+# Last-Updated: sáb nov  8 16:56:56 2025 (+0100)
 # Filename: db.py
 # Author: Joaquin Moncanut <quimm2003@gmail.com>
 import click

@@ -4,7 +4,6 @@
 # Last-Updated:
 # Filename: ecad_get_data.py
 # Author: Joaquin Moncanut <quimm2003@gmail.com>
-import re
 import shutil
 from datetime import datetime
 from pathlib import Path
@@ -12,9 +11,7 @@ from urllib import request
 from zipfile import ZipFile
 
 from data.ecad.ecad_handle_data import EcadHandleData
-
 from db.statements import Statements
-
 from flask import current_app
 
 
@@ -55,6 +52,7 @@ class EcadGetData(EcadHandleData):
 
             for measurement_id, measurement in self.magnitudes[magnitude_id]['measurements'].items():
                 url = self.stmt.get_data_url(self.provider_id, magnitude_id, measurement_id)
+                date_url = self.stmt.get_date_url(self.provider_id, magnitude_id, measurement_id)
 
                 if url:
                     # Store url to download the new file
@@ -65,6 +63,9 @@ class EcadGetData(EcadHandleData):
                         self.file_paths[magnitude][measurement] = {}
 
                     self.file_paths[magnitude][measurement]['url'] = url
+
+                    if date_url:
+                        self.file_paths[magnitude][measurement]['date_url'] = date_url
 
                     # Build the new tmp filename
                     data_suffix = Path(url).suffix
@@ -78,61 +79,29 @@ class EcadGetData(EcadHandleData):
                     # Get the current data date filename if it exists
                     self.file_paths[magnitude][measurement]['data']['curr'] = curr_data_dir / self.ecad_date_filename
 
-    def _check_update_days(self):
-        """Check if today is a valid day to download data."""
-        valid_day = False
+                    # Path of the file containing generation date
+                    if 'date' not in self.file_paths[magnitude][measurement]:
+                        self.file_paths[magnitude][measurement]['date'] = {'tmp': ''}
 
-        if self.today.day in self.valid_update_days:
-            valid_day = True
+                    self.file_paths[magnitude][measurement]['date']['tmp'] = tmp_data_dir / f'{self.today.strftime("%Y%m%d")}_{self.provider}_{magnitude}_{measurement}{data_suffix}'
 
-        valid_day = True
-
-        return valid_day
-
-    def _check_update_period(self, magnitude_id, measurement):
-        """Check if the providers update data period has been trespassed.
-
-        :param magnitude_id: the id identifying the magnitude measured.
-        :type magnitude_id: int
-        :param measurement: the name of the measurement.
-        :type measurement: str
-        """
-        update_period = False
-        now = datetime.now()
-
-        last_updated_date, last_download_try = self.stmt.get_measurement_last_download(magnitude_id, measurement)
-
-        if last_download_try:
-            # Check if we have already tried to download data today
-            delta = now - datetime.strptime(last_download_try, '%d-%m-%Y')
-        else:
-            delta = None
-
-        if delta and delta.days > 0:
-            # Check if the update data period has been trespassed
-            if last_updated_date:
-                last_updated_data = datetime.strptime(last_updated_date, '%d-%m-%Y')
-
-                delta = now - last_updated_data
-
-                if delta.days > self.provider_data['update_data_period']:
-                    update_period = True
-        else:
-            update_period = False
-
-        return update_period
-
-    def _check_downloaded_files_date(self, tmp_date):
+    def _check_downloaded_files_date(self, tmp_date, magnitude_id, measurement_id):
         """Check if the last updated date is the same as in the downloaded files.
 
         If it is the same date, we already have this data.
         """
         update_data = False
-        last_update_data = datetime.strptime(self.ecad.last_updated_date, '%d-%m-%Y')
 
-        delta = tmp_date - last_update_data
+        stmt = Statements()
+        last_update_data = stmt.get_data_file_updated_date(self.provider_id, magnitude_id, measurement_id)
 
-        if delta.days > 0:
+        if last_update_data:
+            delta = tmp_date - datetime(last_update_data.year, last_update_data.month, last_update_data.day)
+
+            if delta.days > 0:
+                update_data = True
+                stmt.set_data_file_updated_date(tmp_date, self.provider_id, magnitude_id, measurement_id)
+        else:
             update_data = True
 
         return update_data
@@ -204,6 +173,19 @@ class EcadGetData(EcadHandleData):
 
         return tmp_data_filename
 
+    def _download_date_file(self, magnitude_id, measurement):
+        """Download files from ECAD."""
+        magnitude = self.magnitudes[magnitude_id]['name']
+
+        date_url = self.file_paths[magnitude][measurement]['date_url']
+        tmp_date_filename = self.file_paths[magnitude][measurement]['date']['tmp']
+
+        # Download data
+        current_app.logger.info(f"{self.provider.title()} {magnitude} {measurement}: Downloading Data")
+        request.urlretrieve(date_url, tmp_date_filename)
+
+        return tmp_date_filename
+
     def _extract_data(self, magnitude_id, measurement_id, measurement, tmp_file_date, tmp_data_filename):
         """Extract downloaded data."""
         magnitude = self.magnitudes[magnitude_id]['name']
@@ -235,30 +217,29 @@ class EcadGetData(EcadHandleData):
         need_to_save = False
         what_to_save = self._prepare_what_to_save()
 
-        if self._check_update_days():
+        if current_app.config['DOWNLOAD_DATA']:
             self._build_filenames()
 
             for magnitude_id in self.magnitudes.keys():
                 magnitude = self.magnitudes[magnitude_id]['name']
 
                 for measurement_id, measurement in self.magnitudes[magnitude_id]['measurements'].items():
-                    if self._check_update_period(magnitude_id, measurement):
+                    # Get new files date
+                    tmp_date_filename = self._download_date_file(magnitude_id, measurement)
+                    tmp_file_date = self.get_ecad_data_timestamp(tmp_date_filename)
+                    tmp_date = datetime.strptime(tmp_file_date, '%d-%m-%Y')
+
+                    # Check if the new files date is the same as the current files date
+                    if self._check_downloaded_files_date(tmp_date, magnitude_id, measurement_id):
+                        need_to_save = True
                         tmp_data_filename = self._download_data(magnitude_id, measurement)
 
-                        # Get new files date
-                        tmp_file_date = self.get_ecad_data_timestamp(tmp_data_filename)
-                        tmp_date = datetime.strptime(tmp_file_date, '%d-%m-%Y')
+                        # Get current files date
+                        curr_date = None
 
-                        # Check if the new files date is the same as the current files date
-                        if self._check_downloaded_files_date(tmp_date):
-                            need_to_save = True
-
-                            # Get current files date
-                            curr_date = None
-
-                            if self.file_paths[magnitude][measurement]['data']['curr'].exists():
-                                curr_file_date = self.get_ecad_data_timestamp(self.file_paths[magnitude][measurement]['data']['curr'])
-                                curr_date = datetime.strptime(curr_file_date, '%d-%m-%Y')
+                        if self.file_paths[magnitude][measurement]['data']['curr'].exists():
+                            curr_file_date = self.get_ecad_data_timestamp(self.file_paths[magnitude][measurement]['data']['curr'])
+                            curr_date = datetime.strptime(curr_file_date, '%d-%m-%Y')
 
                             # Extract the zip file if there is no current data or it is obsolete
                             if curr_date is None or curr_date < tmp_date:
@@ -266,17 +247,21 @@ class EcadGetData(EcadHandleData):
                             else:
                                 # Delete the tmp file as it is the same as the current data
                                 tmp_data_filename.unlink()
-                        else:
-                            current_app.logger.info('Abort: the new files are the same as the current files.')
-                            # Delete the tmp file as it is the same as the current data
-                            tmp_data_filename.unlink()
-
-                            now = datetime.now().strftime('%d-%m-%Y')
-                            self.stmt.set_measurement_last_try(now, magnitude_id, measurement)
-
-                            need_to_save, what_to_save = self._check_database_data(magnitude_id, measurement, what_to_save)
                     else:
-                        current_app.logger.info(f"{self.provider.title()} {magnitude} {measurement}: Data already downloaded")
+                        current_app.logger.info('Abort: the new files are the same as the current files.')
+                        # Delete the tmp file as it is the same as the current data
+                        tmp_data_filename.unlink()
+
+                        now = datetime.now().strftime('%d-%m-%Y')
+                        self.stmt.set_measurement_last_try(now, magnitude_id, measurement)
+
                         need_to_save, what_to_save = self._check_database_data(magnitude_id, measurement, what_to_save)
+        else:
+            for magnitude_id in self.magnitudes.keys():
+                magnitude = self.magnitudes[magnitude_id]['name']
+
+                for measurement_id, measurement in self.magnitudes[magnitude_id]['measurements'].items():
+                    current_app.logger.info(f"{self.provider.title()} {magnitude} {measurement}: Download cancelled in config")
+                    need_to_save, what_to_save = self._check_database_data(magnitude_id, measurement, what_to_save)
 
         return need_to_save, what_to_save

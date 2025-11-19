@@ -1,6 +1,6 @@
 """Facade class to the classes handling Ecad data."""
 # Created: vie jul 12 09:08:29 2024 (+0200)
-# Last-Updated: mié dic 11 09:53:27 2024 (+0100)
+# Last-Updated: sáb nov  8 18:40:25 2025 (+0100)
 # Filename: ecad_data.py
 # Author: Joaquin Moncanut <quimm2003@gmail.com>
 from data.ecad.ecad_get_data import EcadGetData
@@ -34,7 +34,7 @@ class Ecad():
 
     def _save_data(self, what_to_save):
         """Save data to the database."""
-        ecad_save_data = EcadSaveData(self.provider_id, self.provider_data)
+        ecad_save_data = EcadSaveData(self.provider_id, self.provider_data, self)
         self.source_files = ecad_save_data.save_data(what_to_save)
 
     def _generate_stations_html_graphs(self):

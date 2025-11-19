@@ -1,4 +1,11 @@
-/* Schema for PostgreSql v15 */
+/* Schema for PostgreSQL v17 */
+
+-- Bootstrap (run as a superuser, outside transactions; do not run via the Flask init-db CLI)
+-- These statements create the application role and database used by this project.
+-- Uncomment and run manually if you haven't provisioned them yet:
+-- CREATE USER meteo WITH ENCRYPTED PASSWORD 'meteo';
+-- CREATE DATABASE meteo OWNER meteo;
+-- GRANT ALL PRIVILEGES ON DATABASE meteo TO meteo;
 DROP TABLE IF EXISTS ecad_elements;
 DROP TABLE IF EXISTS stations;
 DROP TABLE IF EXISTS data_files;
@@ -66,6 +73,7 @@ CREATE TABLE data_files (
   magnitude_id INTEGER NOT NULL,
   measurement_id INTEGER NOT NULL,
   url TEXT NOT NULL,
+  updated_date DATE NULL,
   FOREIGN KEY (provider_id) REFERENCES providers (id),
   FOREIGN KEY (magnitude_id) REFERENCES magnitudes (id),
   FOREIGN KEY (measurement_id) REFERENCES measurements (id)
@@ -95,6 +103,41 @@ INSERT INTO data_files (provider_id, magnitude_id, measurement_id, url) VALUES (
 'https://knmi-ecad-assets-prd.s3.amazonaws.com/download/ECA_nonblend_tg.zip'
 );
 
+CREATE TABLE date_files (
+  id SERIAL PRIMARY KEY,
+  provider_id INTEGER NOT NULL,
+  magnitude_id INTEGER NOT NULL,
+  measurement_id INTEGER NOT NULL,
+  url TEXT NOT NULL,
+  FOREIGN KEY (provider_id) REFERENCES providers (id),
+  FOREIGN KEY (magnitude_id) REFERENCES magnitudes (id),
+  FOREIGN KEY (measurement_id) REFERENCES measurements (id)
+);
+
+-- Data files for ecad temperature max
+INSERT INTO date_files (provider_id, magnitude_id, measurement_id, url) VALUES (
+(SELECT id FROM providers WHERE name = 'ecad'),
+(SELECT pm.magnitude_id FROM providers_magnitudes pm, magnitudes m, providers p WHERE pm.magnitude_id = m.id AND m.name = 'temperature' AND pm.provider_id = p.id and p.name = 'ecad'),
+(SELECT me.id FROM measurements me, providers_magnitudes pm, magnitudes m, providers p WHERE me.magnitude_id = pm.magnitude_id AND pm.provider_id = p.id AND pm.magnitude_id = m.id AND p.name = 'ecad' AND m.name = 'temperature' AND me.name = 'max'),
+'https://knmi-ecad-assets-prd.s3.amazonaws.com/download/ECA_nonblend_info_tx.txt'
+);
+
+-- Data files for ecad temperature min
+INSERT INTO date_files (provider_id, magnitude_id, measurement_id, url) VALUES (
+(SELECT id FROM providers WHERE name = 'ecad'),
+(SELECT pm.magnitude_id FROM providers_magnitudes pm, magnitudes m, providers p WHERE pm.magnitude_id = m.id AND m.name = 'temperature' AND pm.provider_id = p.id and p.name = 'ecad'),
+(SELECT me.id FROM measurements me, providers_magnitudes pm, magnitudes m, providers p WHERE me.magnitude_id = pm.magnitude_id AND pm.provider_id = p.id AND pm.magnitude_id = m.id AND p.name = 'ecad' AND m.name = 'temperature' AND me.name = 'min'),
+'https://knmi-ecad-assets-prd.s3.amazonaws.com/download/ECA_nonblend_info_tn.txt'
+);
+
+-- Data files for ecad temperature mean
+INSERT INTO date_files (provider_id, magnitude_id, measurement_id, url) VALUES (
+(SELECT id FROM providers WHERE name = 'ecad'),
+(SELECT pm.magnitude_id FROM providers_magnitudes pm, magnitudes m, providers p WHERE pm.magnitude_id = m.id AND m.name = 'temperature' AND pm.provider_id = p.id and p.name = 'ecad'),
+(SELECT me.id FROM measurements me, providers_magnitudes pm, magnitudes m, providers p WHERE me.magnitude_id = pm.magnitude_id AND pm.provider_id = p.id AND pm.magnitude_id = m.id AND p.name = 'ecad' AND m.name = 'temperature' AND me.name = 'mean'),
+'https://knmi-ecad-assets-prd.s3.amazonaws.com/download/ECA_nonblend_info_tg.txt'
+);
+
 CREATE TABLE stations (
   id SERIAL PRIMARY KEY,
   provider_id INTEGER NOT NULL,
@@ -116,6 +159,7 @@ CREATE TABLE ecad_elements (
   element_id TEXT NOT NULL,
   description TEXT NOT NULL,
   unit TEXT NOT NULL,
-  factor NUMERIC(3, 2) NOT NULL
+  factor NUMERIC(3, 2) NOT NULL,
+  priority INTEGER NOT NULL
 );
 

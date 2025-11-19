@@ -1,6 +1,6 @@
 """Module with functions to query the database."""
 # Created: sáb jul 13 18:14:26 2024 (+0200)
-# Last-Updated: dom sep 29 15:18:47 2024 (+0200)
+# Last-Updated: mar nov 18 08:23:11 2025 (+0100)
 # Filename: statements.py
 # Author: Joaquin Moncanut <quimm2003@gmail.com>
 from db import db
@@ -425,6 +425,84 @@ class Statements():
 
         return res
 
+    def get_date_url(self, provider_id, magnitude_id, measurement_id):
+        """Return the url corresponding to the sources of provider, magnitude and measurement.
+
+        :param provider_id: The id of the provider
+        :type provider_id: int
+        :param magnitude_id: The id of the magnitude
+        :type magnitude_id: int
+        :param measurement_id: The id of the measurement.
+        :type measurement_id: int
+        :return: The url to download the corresponding file with generation date.
+        :rtype: str
+        """
+        res = None
+        stmt = 'SELECT url FROM date_files WHERE provider_id = %s AND magnitude_id = %s AND measurement_id = %s'
+
+        if provider_id is not None and magnitude_id is not None and measurement_id is not None:
+            with self._conn.cursor() as cur:
+                cur.execute(stmt, (provider_id, magnitude_id, measurement_id))
+
+                result = cur.fetchall()
+
+                if result:
+                    res = result[0][0]
+
+        return res
+
+    def get_data_file_updated_date(self, provider_id, magnitude_id, measurement_id):
+        """Get the updated_date for a data file.
+
+        :param provider_id: The id of the provider
+        :type provider_id: int
+        :param magnitude_id: The id of the magnitude
+        :type magnitude_id: int
+        :param measurement_id: The id of the measurement.
+        :type measurement_id: int
+        :return: The updated_date value or None if not set
+        :rtype: date|None
+        """
+        res = None
+        stmt = 'SELECT updated_date FROM data_files WHERE provider_id = %s AND magnitude_id = %s AND measurement_id = %s'
+
+        if provider_id is not None and magnitude_id is not None and measurement_id is not None:
+            with self._conn.cursor() as cur:
+                cur.execute(stmt, (provider_id, magnitude_id, measurement_id))
+                result = cur.fetchall()
+
+                if result:
+                    res = result[0][0]
+
+        return res
+
+    def set_data_file_updated_date(self, updated_date, provider_id, magnitude_id, measurement_id):
+        """Set the updated_date for a data file.
+
+        :param updated_date: The updated date value
+        :type updated_date: date
+        :param provider_id: The id of the provider
+        :type provider_id: int
+        :param magnitude_id: The id of the magnitude
+        :type magnitude_id: int
+        :param measurement_id: The id of the measurement.
+        :type measurement_id: int
+        :return: The number of rows affected
+        :rtype: int
+        """
+        rowcount = 0
+        stmt = 'UPDATE data_files SET updated_date = %s WHERE provider_id = %s AND magnitude_id = %s AND measurement_id = %s'
+
+        if provider_id is not None and magnitude_id is not None and measurement_id is not None:
+            with self._conn.cursor() as cur:
+                cur.execute(stmt, (updated_date, provider_id, magnitude_id, measurement_id))
+                rowcount = cur.rowcount
+
+                if rowcount == 1:
+                    self.commit()
+
+        return rowcount
+
     def count_stations(self):
         """Count the number of stations stored in the database.
 
@@ -433,6 +511,23 @@ class Statements():
         """
         res = None
         stmt = 'SELECT COUNT(id) FROM stations'
+
+        with self._conn.cursor() as cur:
+            cur.execute(stmt)
+            result = cur.fetchall()
+
+            res = result[0][0]
+
+        return res
+
+    def count_unprocessed_stations(self):
+        """Count the number of stations stored in the database that does not have a popup yet.
+
+        :return: The number of unprocessed stations.
+        :rtype: int
+        """
+        res = None
+        stmt = 'SELECT COUNT(id) FROM stations WHERE popup IS NULL'
 
         with self._conn.cursor() as cur:
             cur.execute(stmt)
@@ -505,7 +600,7 @@ class Statements():
         """
         res = None
 
-        stmt = 'SELECT id, station_id, name, cn, lat, lon, height, popup FROM stations WHERE provider_id = %s'
+        stmt = "SELECT id, station_id, name, cn, lat, lon, height, popup FROM stations WHERE provider_id = %s"
 
         with self._conn.cursor() as cur:
             if station_id is not None:

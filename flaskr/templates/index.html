@@ -1,16 +1,86 @@
 <!doctype html>
-<html lang="en">
+<html lang="{{ lang }}">
     <head>
-	<title>Meteorological Data from Stations</title>
+	<title>{{ texts.title }}</title>
 	<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0">
 	<link rel="stylesheet" href="{{ url_for('static', filename='lib/theme/default/style.css') }}" type="text/css">
         <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}" type="text/css">
 	<link rel="stylesheet" href="{{ url_for('static', filename='css/meteo.css') }}" type="text/css">
         <script src="{{ url_for('static', filename='lib/OpenLayers.js') }}"></script>
+	<style>
+	    body {
+		margin: 0;
+		padding: 0;
+	    }
+	    #toolbar {
+		position: fixed;
+		top: 0;
+		left: 0;
+		right: 0;
+		background-color: #f0f0f0;
+		padding: 15px;
+		border-bottom: 2px solid #ccc;
+		text-align: center;
+		z-index: 1000;
+	    }
+	    #toolbar label {
+		margin-right: 5px;
+		font-weight: bold;
+	    }
+	    #toolbar select {
+		margin-right: 20px;
+		padding: 5px 10px;
+		font-size: 14px;
+	    }
+	    #toolbar button {
+		padding: 5px 20px;
+		font-size: 14px;
+		background-color: #4CAF50;
+		color: white;
+		border: none;
+		border-radius: 4px;
+		cursor: pointer;
+	    }
+	    #toolbar button:disabled {
+		background-color: #cccccc;
+		cursor: not-allowed;
+	    }
+	    #toolbar button:not(:disabled):hover {
+		background-color: #45a049;
+	    }
+	    #meteo {
+		margin-top: 70px;
+	    }
+	</style>
     </head>
     <body onload="init()">
-	<div id="meteo">
+	<div id="toolbar">
+	    <label for="lang-select">{{ texts.language_label }}</label>
+	    <select id="lang-select">
+		<option value="en" {% if lang == 'en' %}selected{% endif %}>English</option>
+		<option value="es" {% if lang == 'es' %}selected{% endif %}>Español</option>
+	    </select>
+	    
+	    <label for="provider-select">{{ texts.provider_label }}</label>
+	    <select id="provider-select">
+		<option value="">{{ texts.provider_placeholder }}</option>
+		{% for provider_id in providers %}
+		<option value="{{ provider_id }}">{{ providers[provider_id]['name'] }}</option>
+		{% endfor %}
+	    </select>
+	    
+	    <label for="country-select">{{ texts.country_label }}</label>
+	    <select id="country-select">
+		<option value="">{{ texts.country_placeholder }}</option>
+		{% for country_code, country_name in countries %}
+		<option value="{{ country_code }}">{{ country_name }}</option>
+		{% endfor %}
+	    </select>
+	    
+	    <button id="show-map-btn" disabled>{{ texts.show_map }}</button>
+	</div>
+	<div id="meteo" hidden>
 	    <div id="map" class="largemap"></div>
 	    <div id="data" hidden>
 		<div id="data-close">X</div>
@@ -19,6 +89,39 @@
 	</div>
 	<script>
 	 var map;
+	 var selectedProvider = '';
+	 var selectedCountry = '';
+	 var allMarkers = {{ markers|tojson|safe }};
+	
+	 // Enable the show map button only when both selects have values
+	 function checkSelections() {
+	     selectedProvider = document.getElementById('provider-select').value;
+	     selectedCountry = document.getElementById('country-select').value;
+	     var btn = document.getElementById('show-map-btn');
+	     btn.disabled = !(selectedProvider && selectedCountry);
+	     
+	     // If map is already shown, update markers
+	     if (map) {
+		 updateMarkers();
+	     }
+	 }
+	
+	 function changeLanguage() {
+	     var lang = document.getElementById('lang-select').value;
+	     var url = new URL(window.location.href);
+	     url.searchParams.set('lang', lang);
+	     window.location.href = url.toString();
+	 }
+	
+	 // Show the map when the button is clicked
+	 function showMap() {
+	     document.getElementById('meteo').hidden = false;
+	     initMap();
+	     
+	     // Change button text after first initialization
+	     document.getElementById('show-map-btn').textContent = '{{ texts.update_map }}';
+	 }
+	
 	 function getPopup(station_id) {
 	     var url = '{{url_for("popup", station_id = station_id)}}'
 
@@ -30,6 +133,65 @@
 	 }
 
 	 function init() {
+	     // Set up event listeners for the toolbar
+	     document.getElementById('provider-select').addEventListener('change', checkSelections);
+	     document.getElementById('country-select').addEventListener('change', checkSelections);
+	     document.getElementById('show-map-btn').addEventListener('click', showMap);
+	     document.getElementById('lang-select').addEventListener('change', changeLanguage);
+	 }
+	
+	 function updateMarkers() {
+	     if (!map) return;
+	     
+	     // Get the overlay layer
+	     var overlay = map.layers[1]; // Index 1 is the vector overlay (0 is OSM base layer)
+	     
+	     // Clear existing features
+	     overlay.removeAllFeatures();
+	     
+	     // Filter markers by selected provider and country
+	     var providerMarkers = allMarkers[selectedProvider];
+	     
+	     if (providerMarkers && providerMarkers.length > 0) {
+		 var features = [];
+		 var sumLat = 0, sumLon = 0, count = 0;
+		 
+		 for (var i = 0; i < providerMarkers.length; i++) {
+		     var marker = providerMarkers[i];
+		     // Filter by selected country
+		     if (marker.country === selectedCountry) {
+			 var feature = new OpenLayers.Feature.Vector(
+			     new OpenLayers.Geometry.Point(marker.lon, marker.lat).transform('EPSG:4326', 'EPSG:3857'),
+			     {
+			         'station_id': marker.station_id,
+			         'provider_id': marker.provider_id,
+			         'tooltip': marker.tooltip
+			     }
+			 );
+			 features.push(feature);
+			 
+			 // Accumulate coordinates for center calculation
+			 sumLat += parseFloat(marker.lat);
+			 sumLon += parseFloat(marker.lon);
+			 count++;
+		     }
+		 }
+		 
+		 if (features.length > 0) {
+		     overlay.addFeatures(features);
+		     
+		     // Calculate center of markers
+		     var centerLat = sumLat / count;
+		     var centerLon = sumLon / count;
+		     var centerPoint = new OpenLayers.Geometry.Point(centerLon, centerLat).transform('EPSG:4326', 'EPSG:3857');
+		     
+		     // Center the map on the markers
+		     map.setCenter(new OpenLayers.LonLat(centerPoint.x, centerPoint.y), 6);
+		 }
+	     }
+	 }
+	
+	 function initMap() {
 	     // The overlay layer for our marker, with a simple diamond as symbol
 	     var overlay = new OpenLayers.Layer.Vector('Overlay', {
 		 styleMap: new OpenLayers.StyleMap({
@@ -39,20 +201,8 @@
 		 })
 	     });
 
-	     // The location of our marker and popup. We usually think in geographic
-	     // coordinates ('EPSG:4326'), but the map is projected ('EPSG:3857').
-	     var myLocation = new OpenLayers.Geometry.Point(-7, 46).transform('EPSG:4326', 'EPSG:3857');
 	     // The location of the center of the map for the ECAD sources
 	     var ecadCenter = new OpenLayers.Geometry.Point(7, 60).transform('EPSG:4326', 'EPSG:3857');
-
-	     console.log(markers);
-	     
-	     // We add the marker with a tooltip text to the overlay
-	     overlay.addFeatures([
-		 {% for marker in markers %}
-		 new OpenLayers.Feature.Vector(new OpenLayers.Geometry.Point({{ marker['lon'] }}, {{ marker['lat'] }}).transform('EPSG:4326', 'EPSG:3857'), {'station_id': {{ marker['station_id'] }}, 'provider_id': {{ marker['provider_id'] }} }),
-		 {% endfor %}
-	     ]);
 
 	     // Finally we create the map
 	     map = new OpenLayers.Map({
@@ -61,6 +211,9 @@
 		 center: ecadCenter.getBounds().getCenterLonLat(),
 		 zoom: 4
 	     });
+	     
+	     // Add initial markers
+	     updateMarkers();
 	     
 	     var handler = new OpenLayers.Handler.Click(
 		 overlay, { 

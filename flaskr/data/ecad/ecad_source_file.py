@@ -1,7 +1,7 @@
 #!/usr/bin/python3
 """Class representing an ecad file with source data."""
 # Created: jue sep 12 08:56:31 2024 (+0200)
-# Last-Updated: mar sep 24 17:11:22 2024 (+0200)
+# Last-Updated: sáb nov 15 12:48:48 2025 (+0100)
 # Filename: ecad_source_files.py
 # Author: Joaquin Moncanut <quimm2003@gmail.com>
 import math
@@ -179,19 +179,23 @@ class EcadSourceFile():
         """Get the measurement type and participant from the sources file."""
         sources_path = self._filepath.parent / 'sources.txt'
 
-        if sources_path.exists():
-            df = pd.read_csv(sources_path, header=18, encoding='ISO-8859-1')
-            df = df.rename(columns=lambda x: x.strip())
+        try:
+            if sources_path.exists():
+                df = pd.read_csv(sources_path, header=18, encoding='ISO-8859-1')
+                df = df.rename(columns=lambda x: x.strip())
 
-            measurement_type = df.loc[df['SOUID'] == self._source_id, 'ELEID'].values[0]
+                measurement_type = df.loc[df['SOUID'] == self._source_id, 'ELEID'].values[0]
 
-            if measurement_type:
-                self._measurement_type = measurement_type.strip()
+                if measurement_type and isinstance(measurement_type, str):
+                    self._measurement_type = measurement_type.strip()
 
-            participant_name = df.loc[df['SOUID'] == self._source_id, 'PARNAME'].values[0]
+                participant_name = df.loc[df['SOUID'] == self._source_id, 'PARNAME'].values[0]
 
-            if participant_name:
-                self._participant_name = participant_name.strip()
+                if participant_name and isinstance(participant_name, str):
+                    self._participant_name = participant_name.strip()
+        except Exception as e:
+            current_app.logger.error(f'Error {str(e)} when processing {sources_path}')
+            raise
 
         del df
 

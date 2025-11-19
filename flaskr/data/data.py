@@ -1,7 +1,7 @@
 #!/usr/bin/python3
 """Base class for data with common methods and common info."""
 # Created: sáb jul  6 18:31:59 2024 (+0200)
-# Last-Updated: jue sep 26 13:23:01 2024 (+0200)
+# Last-Updated: sáb nov  8 19:14:39 2025 (+0100)
 # Filename: download_data.py
 # Author: Joaquin Moncanut <quimm2003@gmail.com>
 from data.ecad.ecad import Ecad
@@ -114,13 +114,9 @@ class Data:
         :param data_station_id: the id of the station in the database table
         :type data_station_id: int
         """
-        station_popup = None
-
         stmt = Statements()
 
-        station_popup = stmt.get_station_popup(data_station_id)
-
-        return station_popup
+        return stmt.get_station_popup(data_station_id)
 
     def get_stations_markers(self):
         """Build a dict containing the information to place a marker in the map, including its popup and css class name.
@@ -140,16 +136,34 @@ class Data:
             if stations:
                 for row in stations:
                     data_staid = row[0]
+                    station_name = row[2]
+                    country = row[3]
                     lat = row[4]
                     lon = row[5]
                     popup = row[7]
 
+                    # Derive a clean text tooltip (no HTML, no None)
+                    if popup:
+                        # Use only the header part before the first <br to avoid long HTML content
+                        header = str(popup).split('<br', 1)[0]
+                        tooltip = header
+                        popup_html = f'<br />{popup}'
+                    else:
+                        # Fallback to a simple, human-readable tooltip
+                        if station_name:
+                            tooltip = f'{station_name} ({country})'
+                        else:
+                            tooltip = f'Station {data_staid}'
+                        popup_html = f'<br />{tooltip}'
+
                     marker = {
                         'lat': lat,
                         'lon': lon,
-                        'popup': f'<br />{popup}',
+                        'popup': popup_html,
+                        'tooltip': tooltip,
                         'station_id': f'{data_staid}',
-                        'provider_id': f'{provider_id}'
+                        'provider_id': f'{provider_id}',
+                        'country': country
                     }
 
                     if provider_id not in st_markers:

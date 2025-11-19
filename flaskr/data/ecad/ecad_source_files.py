@@ -1,15 +1,11 @@
 #!/usr/bin/python3
 """Handle a collection of EcadSourceFile objects."""
 # Created: jue sep 12 10:27:01 2024 (+0200)
-# Last-Updated: jue sep 26 16:26:59 2024 (+0200)
+# Last-Updated: sáb nov  8 19:43:25 2025 (+0100)
 # Filename: ecad_source_files.py
 # Author: Joaquin Moncanut <quimm2003@gmail.com>
-from os import devnull
-
 from data.ecad.ecad_source_file import EcadSourceFile
-
 from db.statements import Statements
-
 from flask import current_app
 
 
@@ -27,7 +23,7 @@ class EcadSourceFiles():
         self.provider_id = provider_id
         self.provider_data = provider_data
         self.magnitudes = self.provider_data['magnitudes']
-        self.current_data_dir = self.provider_data['dirs']['curr_data_dir'] / self.provider
+        self.current_data_dir = self.provider_data['dirs']['curr_data_dir'] / self.provider_data['name']
 
         self.ecad_measurements_aliases = {
             'mean': 'TG',
@@ -156,6 +152,7 @@ class EcadSourceFiles():
 
     def parse_source_data_files(self):
         """Parse all source data files for ecad."""
+
         if self.current_data_dir.exists():
             for magnitude_id in self.magnitudes.keys():
                 magnitude = self.magnitudes[magnitude_id]['name']

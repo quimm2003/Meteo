@@ -1,2 +1,0 @@
-- Los datos no son homogéneos debido al ELEID: a veces hay varias sources para cada medida de una sola estación porque la medida se toma en distintas horas (18-18, 19-19, no se sabe...)
-  - Solución: implementar una lista de medidas preferidas según el ELEID y descartar las sources con menos preferencia.

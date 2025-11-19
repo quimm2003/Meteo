@@ -12,17 +12,16 @@ from data.ecad.ecad_elements import EcadElements
 from data.ecad.ecad_handle_data import EcadHandleData
 from data.ecad.ecad_source_files import EcadSourceFiles
 from data.ecad.ecad_stations import EcadStations
-
 from db.statements import Statements
-
 from flask import current_app
 
 
 class EcadSaveData(EcadHandleData):
     """Class to save Ecad data to the database."""
 
-    def __init__(self, provider_id, provider_data):
+    def __init__(self, provider_id, provider_data, ecad_instance):
         """Initialize the class."""
+        self.ecad = ecad_instance
         self.provider_id = provider_id
         self.provider_data = provider_data
         self.provider = self.provider_data['name']
@@ -54,7 +53,7 @@ class EcadSaveData(EcadHandleData):
             with open(self.pickle_file, 'rb') as pick:
                 source_files = pickle.load(pick)
         else:
-            source_files = EcadSourceFiles()
+            source_files = EcadSourceFiles(self.provider_id, self.provider_data)
             source_files.parse_source_data_files()
 
             current_app.logger.info(f'{self.provider.title()}: Dumping data to {self.pickle_file}.')
@@ -87,7 +86,7 @@ class EcadSaveData(EcadHandleData):
                                 ecad_stations = EcadStations(self.provider_id, self.provider_data, stations_filename=stations_filename, measurement=measurement)
                                 ecad_stations.save_data()
                             else:
-                                current_app.logger.error(f"stations filename {stations_filename} does not exist.")
+                                current_app.logger.error(f"stations filename {stations_filename} does not exist")
 
                         # Save elements
                         if what_to_save[self.provider][magnitude_id][measurement]['elements'] is True:
@@ -103,17 +102,17 @@ class EcadSaveData(EcadHandleData):
                 # Process sources
                 # if what_to_save[self.provider]['sources'] is True:
                 if True:
-                    current_app.logger.info(f'{self.provider.title()}: Parsing source files.')
+                    current_app.logger.info(f'{self.provider.title()} Parsing source files')
 
                     t1 = time.time()
 
                     self._serialize_unserialize_sources(curr_file_date)
 
                     t2 = time.time()
-                    current_app.logger.info(f'{self.provider.title()}: {self.source_files.num_files_processed} files processed, {self.source_files.num_files_added} files added. Elapsed time: {timedelta(seconds=t2-t1)}')
+                    current_app.logger.info(f'{self.provider.title()}: {self.source_files.num_files_processed} files processed, {self.source_files.num_files_added} files added to pickle file. Elapsed time: {timedelta(seconds=t2 - t1)}')
 
-                    # current_app.logger.info(f'{self.provider.title()}: Saving source popup markers')
-                    # ecad_stations = EcadStations(self.provider_id, self.provider_data)
-                    # ecad_stations.save_source_popup_markers(self.source_files)
+                    current_app.logger.info(f'{self.provider.title()}: Saving source popup markers')
+                    ecad_stations = EcadStations(self.provider_id, self.provider_data)
+                    ecad_stations.save_source_popup_markers(self.source_files)
 
         return self.source_files
